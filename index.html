@@ -1,45 +1,83 @@
 
-const CACHE_NAME = "pro-expense-v2";
-const APP_FILES = [
-  "./",
-  "./index.html",
-  "./manifest.json"
-];
-
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES))
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(key => key.startsWith("pro-expense-") && key !== CACHE_NAME)
-          .map(key => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", event => {
-  if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
-
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        }
-        return response;
-      }).catch(() => caches.match("./index.html"));
-    })
-  );
-});
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#243b8a">
+<link rel="manifest" href="./manifest.json">
+<title>Pro Expense Manager</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5ff;color:#172554}
+header{background:linear-gradient(135deg,#243b8a,#5269dc);color:white;padding:24px 18px;border-radius:0 0 24px 24px}
+main{max-width:650px;margin:auto;padding:16px}
+.card{background:white;padding:18px;border-radius:18px;margin-bottom:15px;box-shadow:0 4px 18px #17255412}
+h1{margin:0 0 8px;font-size:24px}
+label{display:block;font-weight:bold;margin:12px 0 6px}
+input,select,button{width:100%;padding:13px;border-radius:10px;border:1px solid #cbd5e1;font-size:16px;box-sizing:border-box}
+button{background:#334cc4;color:white;border:0;margin-top:14px;font-weight:bold}
+.stat{font-size:27px;font-weight:bold;color:#334cc4}
+.item{padding:12px 0;border-bottom:1px solid #e2e8f0;overflow-wrap:anywhere}
+.small{font-size:12px;color:#64748b}
+footer{text-align:center;color:#64748b;padding:20px;font-size:13px}
+</style>
+</head>
+<body>
+<header><h1>Pro Expense Manager</h1><div>आपका अपना खर्च प्रबंधक</div></header>
+<main>
+<section class="card">
+<div>कुल खर्च</div><div class="stat" id="total">₹0.00</div>
+<div class="small" id="status">खर्च इसी ब्राउज़र में सेव होंगे।</div>
+</section>
+<section class="card">
+<h3>➕ खर्च जोड़ें</h3>
+<form id="form">
+<label for="date">तारीख</label><input id="date" type="date" required>
+<label for="amount">रकम (₹)</label><input id="amount" type="number" min="0.01" step="0.01" required>
+<label for="type">प्रकार</label><select id="type"><option>ROOM</option><option>PERSONAL</option></select>
+<label for="remark">विवरण</label><input id="remark" maxlength="200" placeholder="खर्च का विवरण">
+<button type="submit">खर्च सेव करें</button>
+</form>
+</section>
+<section class="card">
+<h3>📒 खर्च रजिस्टर</h3><div id="list"></div>
+<button id="csv" type="button">CSV डाउनलोड</button>
+</section>
+</main>
+<footer>Developed by Ramashray Yadav</footer>
+<script>
+const KEY="pem_offline_expenses_v2";
+const $=id=>document.getElementById(id);
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function read(){try{return JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){return []}}
+function money(n){return "₹"+Number(n).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function render(){
+ const rows=read();$("total").textContent=money(rows.reduce((s,x)=>s+Number(x.amount),0));
+ $("list").replaceChildren();
+ if(!rows.length){$("list").textContent="अभी कोई खर्च नहीं है।";return}
+ rows.slice().reverse().forEach(x=>{
+  const d=document.createElement("div");d.className="item";
+  const b=document.createElement("b");b.textContent=money(x.amount)+" · "+x.type;
+  const p=document.createElement("div");p.className="small";p.textContent=x.date+" · "+x.remark;
+  const del=document.createElement("button");del.type="button";del.textContent="हटाएँ";
+  del.onclick=()=>{if(confirm("यह खर्च हटाएँ?")){localStorage.setItem(KEY,JSON.stringify(read().filter(y=>y.id!==x.id)));render()}};
+  d.append(b,p,del);$("list").append(d);
+ });
+}
+$("date").value=today();
+$("form").onsubmit=e=>{
+ e.preventDefault();
+ const rows=read();rows.push({id:Date.now()+"",date:$("date").value,amount:Number($("amount").value),type:$("type").value,remark:$("remark").value.trim()});
+ try{localStorage.setItem(KEY,JSON.stringify(rows));$("amount").value="";$("remark").value="";render();alert("खर्च सेव हो गया।")}
+ catch(err){alert("सेव नहीं हो सका।")}
+};
+$("csv").onclick=()=>{
+ const rows=read();const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+ const csv="\uFEFF"+[["Date","Amount","Type","Remark"],...rows.map(x=>[x.date,x.amount,x.type,x.remark])].map(r=>r.map(q).join(",")).join("\r\n");
+ const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=u;a.download="Pro-Expense-Report.csv";a.click();URL.revokeObjectURL(u);
+};
+if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(console.error))}
+render();
+</script>
+</body>
+</html>
