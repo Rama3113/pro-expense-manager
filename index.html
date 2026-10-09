@@ -1,55 +1,45 @@
 
-<!DOCTYPE html>
-<html lang="hi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#243b8a">
-  <title>Pro Expense Manager</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f1f5ff;
-      color: #172554;
-    }
-    header {
-      background: linear-gradient(135deg, #243b8a, #5269dc);
-      color: white;
-      padding: 28px 20px;
-      border-radius: 0 0 24px 24px;
-    }
-    main {
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 18px;
-      box-shadow: 0 4px 18px #17255412;
-    }
-    h1 { margin: 0 0 8px; font-size: 25px; }
-    .amount { font-size: 30px; font-weight: bold; }
-    footer {
-      text-align: center;
-      padding: 20px;
-      color: #64748b;
-      font-size: 13px;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Pro Expense Manager</h1>
-    <div>आपका अपना खर्च प्रबंधक</div>
-  </header>
-  <main>
-    <section class="card">
-      <div>ऑफलाइन ऐप सेटअप</div>
-      <p class="amount">₹0.00</p>
-      <p>अगले चरण में खर्च सेव करना और इंटरनेट आने पर Google Sheets से सिंक करना जोड़ेंगे।</p>
-    </section>
-  </main>
-  <footer>Developed by Ramashray Yadav</footer>
-</body>
-</html>
+const CACHE_NAME = "pro-expense-v2";
+const APP_FILES = [
+  "./",
+  "./index.html",
+  "./manifest.json"
+];
+
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(key => key.startsWith("pro-expense-") && key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        }
+        return response;
+      }).catch(() => caches.match("./index.html"));
+    })
+  );
+});
