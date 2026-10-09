@@ -1,0 +1,12 @@
+
+{
+  "name": "Pro Expense Manager",
+  "short_name": "Pro Expense",
+  "description": "Personal and room expense manager by Ramashray Yadav",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1f5ff",
+  "theme_color": "#243b8a",
+  "icons": []
+}
